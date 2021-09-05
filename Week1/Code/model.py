@@ -1,125 +1,97 @@
+# nn.ModuleList()
+# debug时重点看shape和_modules
+
+# 注意kernal_size=3对应padding=1，而stride仅仅改变的是下采样的尺度
+
 import torch
 import torch.nn as nn
-""" 
-Information about architecture config:
-Tuple is structured by (filters, kernel_size, stride) 
-Every conv is a same convolution. 
-List is structured by "B" indicating a residual block followed by the number of repeats
-"S" is for scale prediction block and computing the yolo loss
-"U" is for upsampling the feature map and concatenating with a previous layer
-"""
-config = [
-    (32, 3, 1),
-    (64, 3, 2),
-    ["B", 1],
-    (128, 3, 2),
-    ["B", 2],
-    (256, 3, 2),
-    ["B", 8],
-    (512, 3, 2),
-    ["B", 8],
-    (1024, 3, 2),
-    ["B", 4],  # To this point is Darknet-53
-    (512, 1, 1),
-    (1024, 3, 1),
-    "S",
-    (256, 1, 1),
-    "U",
-    (256, 1, 1),
-    (512, 3, 1),
-    "S",
-    (128, 1, 1),
-    "U",
-    (128, 1, 1),
-    (256, 3, 1),
-    "S",
-]
-class CNNBlock(nn.Moudle):
-    def __init__(self, in_channels, out_channels, bn_act = True, **kwargs):
+from torch.nn.modules import padding
+
+class DBL(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size=3, stride = 1, bn_act=True, **kwargs):
         super().__init__()
-        self.conv = nn.Conv2d(in_channels, out_channels, bias = not bn_act, **kwargs)
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        padding = 1 if kernel_size==3 else 0
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size, stride = stride, padding = padding, bias = not bn_act, **kwargs)
         self.bn = nn.BatchNorm2d(out_channels)
         self.leaky = nn.LeakyReLU(0.1)
         self.use_bn_act = bn_act
-        
-    def forward(self,x):
-        if self.use_bn_act:
-            return self.leaky(self.bn(self.conv(x)))
-        else:
-            return self.conv()
-
-class ResidualBlock(nn.Moudle):
-    def __init(self, channels, use_residual=True, num_repeats=1):
+    
+    def forward(self, x):
+        return self.leaky(self.bn(self.conv(x))) if self.use_bn_act else self.conv(x)
+    
+class Res_unit(nn.Module): # Res_unit不改变通道数
+    def __init__(self, channels, **kwargs):
         super().__init__()
-        self.layers = nn.ModuleList()
-        for _ in num_repeats:
-            self.layers += [
-                CNNBlock(channels, channels//2, kernel_size = 1),
-                CNNBlock(channels//2, channels, kernel_size=3, padding=1)
-            ]
-        self.use_residual = use_residual
-        self.num_repeats = num_repeats
+        self.layers = nn.Sequential(
+            DBL(channels, channels//2,1),
+            DBL(channels//2, channels,3),
+        )
+    
+    def forward(self, x):
+        return self.layers(x)+x
         
-        def foward(self,x):
-            for layer in self.layers:
-                x = layer(x) + x if self.use_residual else layer(x)
-                return x;
-
-class ScalePrediction(nn.Moudle):
-    def __init__(self, in_channels, num_classes):
-        super().__init__() 
-        self.pred = nn.Sequential(
-            CNNBlock(in_channels, 2*in_channels, kernel_size=3,padding=1),
-            # 每个cell对应三种anchor
-            CNNBlock(2*in_channels,3*(num_classes+5),bn_act=False,kernel_size=1) # [po,x,y,w,h]
-        )
-        self.num_classes = num_classes
-    
-    def forward(self,x):
-        return (
-            self.pred(x)
-            .reshape(x.shape[0],3,self.num_classes+5,x.shape[2],x.shape[3])
-            .permute(0,1,3,4,2)
-        )
-        #    N x (anchor_nums) x (w) x (h) x (5+num_classes)
-class YOLOv3(nn.Moudle):
-    def __init__(self, in_channels=3, num_classes=20):
-        self.num_classes = num_classes
+class Res_Blocks(nn.Module): # Res_Blocks通过刚进入时的DBL块同时改变size和channel
+    def __init__(self, in_channels, out_channels, nums, **kwargs):
+        super().__init__()
         self.in_channels = in_channels
-        self.layer = self._create_conv_layers()
+        self.out_channels = out_channels
+        self.nums = nums
+        self.layers = nn.ModuleList()
+        self.layers += [DBL(in_channels,out_channels,3,stride=2)]
+        for _ in range(nums):
+            self.layers+=[Res_unit(out_channels)]
+        
+    def forward(self, x):
+        for layer in self.layers:
+            x = layer(x)
+        return x
 
-    def forward(self,x):
-        pass
+class Prediction(nn.Module):
+    '''
+    def __init__(self, channels, num_classes, **kwargs):
+        super().__init__()
+        self.layer
+    '''
+    pass
     
-    def _create_conv_layers(self):
-        layers = nn.ModuleList()
-        in_channels = self.in_channels
-        for moudle in config:
-            if isinstance(moudle,tuple):
-                out_channels ,kernel_size, stride = moudle
-                layers.append(
-                    CNNBlock(
-                        in_channels,
-                        out_channels,
-                        kernel_size=kernel_size,
-                        stride = stride,
-                        padding=1 if kernel_size == 3 else 0 #1*1卷积不用padding，3*3需要
-                    )
-                )
-                in_channels = out_channels
-            elif isinstance(moudle, list):
-                num_repeats = moudle[1]
-                layers.append(ResidualBlock(in_channels, num_repeats=num_repeats))
+    
+class backbone(nn.Module):
+    def __init__(self, in_channels=3, num_classes=20):
+        super().__init__()
+        self.in_channels = in_channels
+        self.num_classes = num_classes
+        self.layers = nn.ModuleList()   
+        self.layers.append(DBL(in_channels,32,3))
+        in_channels = 32
+        num_list = [1,2,8,8,4]
+        for num in num_list:
+            self.layers.append(Res_Blocks(in_channels, 2*in_channels, num))
+            in_channels = 2*in_channels
+    
+    def forward(self, x):
+        for layer in self.layers:
+            x = layer(x)
+            # print(x.shape)
+        return x
+        
+        
+class Yolov3(nn.Module):
+    '''
+    def __init__(self, channels, num_classes, **kwargs):
+        super().__init__()
+        self.layers = nn.ModuleList()    
+    '''
+    pass
 
-            elif isinstance(moudle, str):
-                if moudle == "S":
-                    layers += [
-                        ResidualBlock(in_channels, use_residual=False, num_repeats=1),
-                        CNNBlock(in_channels, in_channels//2, kernel_size = 1),
-                        ScalePrediction(in_channels//2, num_classes=self.num_classes)
-                    ]
-                    
-                elif moudle == "U":
-                    layers.append(nn.Upsample(scale_factor=2))
-                    in_channels = in_channels*3 #上采样的时候同时想要连接
-        return layers
+
+if __name__ == "__main__":
+    num_classes = 20
+    IMAGE_SIZE = 256
+    model = backbone(num_classes=num_classes)
+    x = torch.randn((2,3,IMAGE_SIZE,IMAGE_SIZE)) #(N,C,H,W)
+    out = model(x)
+    print("out:", out.shape)
+    print("success!")
+    
