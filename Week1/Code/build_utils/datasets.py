@@ -45,7 +45,7 @@ def exif_size(img):
 
     return s
 
-
+# datasets.py文件的核心类 
 class LoadImagesAndLabels(Dataset):  # for training/testing
     def __init__(self,
                  path,   # 指向data/my_train_data.txt路径或data/my_val_data.txt路径
