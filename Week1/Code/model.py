@@ -129,8 +129,7 @@ class Yolov3(nn.Module):
                 # dim=1,[N,C,H,W]
                 x = torch.cat([x,self.feature_maps[-1]],dim = 1)
                 self.feature_maps.pop()
-                
-                
+                        
         print("hhh")
         
         return x

@@ -1,17 +1,16 @@
-Repo-specific GitIgnore ----------------------------------------------------------------------------------------------
-#*.jpg
-#*.jpeg
-#*.png
-#*.bmp
-#*.tif
-#*.tiff
-#*.heic
-#*.JPG
-#*.JPEG
-#*.PNG
-#*.BMP
-#*.TIF
-#*.TIFF
+Repo-specific GitIgnore ----------------------------------------------------------------------------------------------*.jpg
+*.jpeg
+*.png
+*.bmp
+*.tif
+*.tiff
+*.heic
+*.JPG
+*.JPEG
+*.PNG
+*.BMP
+*.TIF
+*.TIFF
 *.HEIC
 *.mp4
 *.mov
@@ -249,3 +248,4 @@ com_crashlytics_export_strings.xml
 crashlytics.properties
 crashlytics-build.properties
 fabric.properties
+
