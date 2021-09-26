@@ -4,7 +4,6 @@ import pickle
 import time
 import errno
 import os
-from contextlib import contextmanager
 
 import torch
 import torch.distributed as dist
@@ -319,17 +318,7 @@ def init_distributed_mode(args):
         args.rank, args.dist_url), flush=True)
     torch.distributed.init_process_group(backend=args.dist_backend, init_method=args.dist_url,
                                          world_size=args.world_size, rank=args.rank)
+    # 使用torch1.9或以上时建议加上device_ids=[args.rank]
     torch.distributed.barrier()
     setup_for_distributed(args.rank == 0)
 
-
-@contextmanager
-def torch_distributed_zero_first(local_rank: int):
-    """
-    Decorator to make all processes in distributed training wait for each local_master to do something.
-    """
-    if local_rank not in [-1, 0]:
-        torch.distributed.barrier()
-    yield
-    if local_rank == 0:
-        torch.distributed.barrier()

@@ -17,7 +17,7 @@ Repo-specific GitIgnore --------------------------------------------------------
 *.MOV
 *.avi
 *.data
-*.json
+# *.json
 *.xml
 
 #*.cfg

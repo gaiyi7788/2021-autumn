@@ -8,7 +8,9 @@
 
 import torch
 import torch.nn as nn
-from torch.nn.modules import padding
+#from torch.nn.modules import padding
+
+
 
 class DBL(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size=3, stride = 1, bn_act=True, **kwargs):
@@ -97,7 +99,7 @@ class backbone(nn.Module):
         return x
         
         
-class Yolov3(nn.Module):
+class Yolov3(nn.Module): #增加transform
     def __init__(self, num_classes=20, channels=3, **kwargs):
         super().__init__()
         self.backbone = backbone(num_classes=num_classes)
@@ -112,6 +114,7 @@ class Yolov3(nn.Module):
         self.upsample = nn.Upsample(scale_factor=2)
 
     def forward(self, x):
+        
         backbone_modules = self.backbone.layers._modules
         for name in backbone_modules:
             x = backbone_modules[name](x)
@@ -135,12 +138,3 @@ class Yolov3(nn.Module):
         return x
 
 
-if __name__ == "__main__":
-    num_classes = 20
-    IMAGE_SIZE = 256
-    model = Yolov3(num_classes=num_classes)
-    x = torch.randn((2,3,IMAGE_SIZE,IMAGE_SIZE)) #(N,C,H,W)
-    out = model(x)
-    print("out:", out.shape)
-    print("success!")
-    

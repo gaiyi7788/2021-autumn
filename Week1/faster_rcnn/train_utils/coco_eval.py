@@ -1,15 +1,15 @@
 import json
-import copy
 from collections import defaultdict
 
 import numpy as np
+import copy
 import torch
 import torch._six
 from pycocotools.cocoeval import COCOeval
 from pycocotools.coco import COCO
 import pycocotools.mask as mask_util
 
-from .distributed_utils import all_gather
+from train_utils.distributed_utils import all_gather
 
 
 class CocoEvaluator(object):
