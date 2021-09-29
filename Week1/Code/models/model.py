@@ -8,8 +8,21 @@
 
 import torch
 import torch.nn as nn
+from data.transform import Transform
 #from torch.nn.modules import padding
+import numpy as np
+import cv2
 
+def tensor2img(tensor):  #将tensor可视化，但好像不太好用
+    array1=tensor[0].cpu().numpy()#将tensor数据转为numpy数据
+    maxValue=array1.max()
+    array1=array1*255/maxValue#normalize，将图像数据扩展到[0,255]
+    mat=np.uint8(array1)#float32-->uint8
+    print('mat_shape:',mat.shape)#mat_shape: (3, 982, 814)
+    mat=mat.transpose(1,2,0)#mat_shape: (982, 814，3)
+    print(mat.shape)
+    cv2.imshow("img",mat)
+    cv2.waitKey()
 
 
 class DBL(nn.Module):
@@ -100,29 +113,48 @@ class backbone(nn.Module):
         
         
 class Yolov3(nn.Module): #增加transform
-    def __init__(self, num_classes=20, channels=3, **kwargs):
+    def __init__(self, num_classes=20, channels=3, device = 'cuda:0', **kwargs):
         super().__init__()
+        self.num_classes = num_classes
+        self.channels = channels
+        self.device = device
+        self.min_size = 384
+        self.max_size = 512
+        self.image_mean = [0.485, 0.456, 0.406]
+        self.image_std = [0.229, 0.224, 0.225]
+        self.transform = None
         self.backbone = backbone(num_classes=num_classes)
         self.feature_maps = []   
         self.outputs = [] 
         self.layers = nn.ModuleList()
         self.layers += [
-            YoloBlock(1024, 512), Prediction(512, num_classes), DBL(512,256,1),
-            YoloBlock(768, 256), Prediction(256, num_classes), DBL(256,128,1),
-            YoloBlock(384, 128), Prediction(128, num_classes)
+            YoloBlock(1024, 512), Prediction(512, self.num_classes), DBL(512,256,1),
+            YoloBlock(768, 256), Prediction(256, self.num_classes), DBL(256,128,1),
+            YoloBlock(384, 128), Prediction(128, self.num_classes)
         ]
         self.upsample = nn.Upsample(scale_factor=2)
 
-    def forward(self, x):
+    def forward(self, images):
+        for img in images: # img[C,H,W]
+            val = img.shape[-2:] # 获得[H,W]
+            assert len(val) == 2  # 防止输入的是个一维向量
+
+        # images是一个batch的图片组成的list，batch中的图片尺寸可能不一样。对于VOC2012数据集，大约在375*500
+        self.transform = Transform(self.min_size, self.max_size, self.image_mean, self.image_std)
+        images, targets = self.transform(images,None)  # 对图像进行预处理,将图像大小统一
+        #输出尺寸为375*500，这是预设的参数
         
         backbone_modules = self.backbone.layers._modules
+        x = images.tensors.to(self.device)
+        # tensor2img(x)
         for name in backbone_modules:
             x = backbone_modules[name](x)
+            print(x.shape)
             if name == '3' or name == '4':
                 self.feature_maps.append(x)
-        layers_names = ['0','1','2','3','4','5','6','7']
+        # layers_names = ['0','1','2','3','4','5','6','7']
         for name in range(8):
-            print(name)
+            # print(name)
             if name == 0 or name == 3 or name == 6:
                 x = self.layers[name](x)
             elif name == 1 or name == 4 or name == 7:
@@ -132,9 +164,7 @@ class Yolov3(nn.Module): #增加transform
                 # dim=1,[N,C,H,W]
                 x = torch.cat([x,self.feature_maps[-1]],dim = 1)
                 self.feature_maps.pop()
-                        
-        print("hhh")
-        
-        return x
-
+        return self.outputs
+    # outputs[0,1,2]  outputs[0]:[N,C,H,W]
+    # C = 85 = 3*(num_classes+4+1),[x,y,h,w,co,class]
 

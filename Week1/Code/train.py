@@ -1,16 +1,18 @@
 import torch
-from data import transforms
+from data import transform
 from models.model import Yolov3
 from data.dataset import VOC2012DataSet
 import argparse
 import os
 
+
+
 def main(args):
     device = torch.device(args.device if torch.cuda.is_available() else "cpu")
     data_transform = {
-        "train": transforms.Compose([transforms.ToTensor(),
-                                     transforms.RandomHorizontalFlip(0.5)]), #依概率p垂直翻转
-        "val": transforms.Compose([transforms.ToTensor()])
+        "train": transform.Compose([transform.ToTensor(),
+                                     transform.RandomHorizontalFlip(0.5)]), #依概率p垂直翻转
+        "val": transform.Compose([transform.ToTensor()])
     }
     
     VOC_root = args.data_path
@@ -33,16 +35,22 @@ def main(args):
                                                       num_workers=num_workers,
                                                       collate_fn=train_data_set.collate_fn)
     
-    model = Yolov3(num_classes = args.num_classes)
+    model = Yolov3(num_classes = args.num_classes,device = device)
     model.to(device)
     
     #x = torch.randn((2,3,IMAGE_SIZE,IMAGE_SIZE)) #(N,C,H,W)
     for i, data in enumerate(train_data_loader,0): # i是序列脚标，data是具体数据
+        if i == 2:
+            break
         inputs, labels = data # 这边inputs的尺寸不一样，而且inputs是一个数组，inputs需要进行预处理
-        inputs = inputs.to(device)
-        labels = labels.to(device)
+        #inputs = inputs.to(device)
+        #labels = labels.to(device)
         outputs = model(inputs)
-    print("out:", outputs.shape)
+        print("out[0]:", outputs[0].shape)
+        print("out[1]:", outputs[1].shape)
+        print("out[2]:", outputs[2].shape)
+        # print(torch.cuda.memory_summary())
+
     print("success!")
 
 
@@ -66,10 +74,8 @@ if __name__ == "__main__":
     parser.add_argument('--epochs', default=15, type=int, metavar='N',
                         help='number of total epochs to run')
     # 训练的batch size
-    parser.add_argument('--batch_size', default=2, type=int, metavar='N',
+    parser.add_argument('--batch_size', default=1, type=int, metavar='N',
                         help='batch size when training.')
 
     args = parser.parse_args()
     main(args)
-    print(args)
-    print("hhh")
