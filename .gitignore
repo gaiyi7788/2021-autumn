@@ -58,6 +58,8 @@ yolov3-tiny.conv.15
 # data folder
 data/
 VOCdevkit/
+data_preparation/
+dataset/
 
 # GitHub Python GitIgnore ----------------------------------------------------------------------------------------------
 # Byte-compiled / optimized / DLL files
